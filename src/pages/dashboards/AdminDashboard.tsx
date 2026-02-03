@@ -44,6 +44,7 @@ type Driver = {
   id: string;
   full_name: string;
   phone: string;
+  email: string | null;
   vehicle_number: string | null;
   status: string | null;
 };
@@ -80,6 +81,7 @@ export default function AdminDashboard() {
   const [newDriver, setNewDriver] = useState({
     full_name: '',
     phone: '',
+    email: '',
     license_number: '',
     vehicle_number: '',
   });
@@ -169,7 +171,7 @@ export default function AdminDashboard() {
         title: 'Driver Added',
         description: 'New driver has been added successfully.',
       });
-      setNewDriver({ full_name: '', phone: '', license_number: '', vehicle_number: '' });
+      setNewDriver({ full_name: '', phone: '', email: '', license_number: '', vehicle_number: '' });
       fetchData();
     }
     
@@ -392,7 +394,7 @@ export default function AdminDashboard() {
                                     <SelectContent>
                                       {drivers.map((driver) => (
                                         <SelectItem key={driver.id} value={driver.id}>
-                                          {driver.full_name} - {driver.phone}
+                                          {driver.full_name} {driver.email ? `(${driver.email})` : ''} - {driver.phone}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -466,6 +468,7 @@ export default function AdminDashboard() {
                             </div>
                             <div>
                               <p className="font-medium">{driver.full_name}</p>
+                              {driver.email && <p className="text-sm text-muted-foreground">{driver.email}</p>}
                               <p className="text-sm text-muted-foreground">{driver.phone}</p>
                             </div>
                           </div>
@@ -501,6 +504,15 @@ export default function AdminDashboard() {
                       placeholder="Phone number"
                       value={newDriver.phone}
                       onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="Email address"
+                      value={newDriver.email}
+                      onChange={(e) => setNewDriver({ ...newDriver, email: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
