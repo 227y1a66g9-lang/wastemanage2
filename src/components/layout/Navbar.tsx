@@ -60,12 +60,14 @@ export function Navbar() {
             
             {user && (
               <>
-                <Link
-                  to={getDashboardLink()}
-                  className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  Dashboard
-                </Link>
+                {userRole === 'admin' && (
+                  <Link
+                    to={getDashboardLink()}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -109,13 +111,15 @@ export function Navbar() {
               
               {user && (
                 <>
-                  <Link
-                    to={getDashboardLink()}
-                    onClick={() => setIsOpen(false)}
-                    className="px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    Dashboard
-                  </Link>
+                  {userRole === 'admin' && (
+                    <Link
+                      to={getDashboardLink()}
+                      onClick={() => setIsOpen(false)}
+                      className="px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      Dashboard
+                    </Link>
+                  )}
                   <button
                     onClick={() => {
                       handleLogout();

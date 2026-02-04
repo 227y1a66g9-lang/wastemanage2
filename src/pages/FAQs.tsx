@@ -180,20 +180,12 @@ export default function FAQs() {
           <p className="text-muted-foreground mb-6">
             Can't find the answer you're looking for? Contact our support team.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href="mailto:support@wms.gov"
-              className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              Email Support
-            </a>
-            <a
-              href="tel:1800-WASTE-00"
-              className="inline-flex items-center justify-center px-6 py-3 border border-border rounded-lg font-medium hover:bg-muted transition-colors"
-            >
-              Call 1800-WASTE-00
-            </a>
-          </div>
+          <a
+            href="mailto:support@wms.gov"
+            className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            Email Support
+          </a>
         </div>
       </section>
     </Layout>
