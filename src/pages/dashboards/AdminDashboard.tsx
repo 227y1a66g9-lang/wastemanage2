@@ -26,6 +26,8 @@ import {
   Users,
   MapPin,
   Loader2,
+  Pencil,
+  Trash,
 } from 'lucide-react';
 
 type Complaint = {
@@ -46,7 +48,9 @@ type Driver = {
   phone: string;
   email: string | null;
   vehicle_number: string | null;
+  license_number: string | null;
   status: string | null;
+  user_id: string | null;
 };
 
 type Bin = {
@@ -88,6 +92,19 @@ export default function AdminDashboard() {
   });
   const [addingDriver, setAddingDriver] = useState(false);
   const [driverErrors, setDriverErrors] = useState<Record<string, string>>({});
+  
+  // Edit Driver
+  const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [editDriverData, setEditDriverData] = useState({
+    full_name: '',
+    phone: '',
+    email: '',
+    license_number: '',
+    vehicle_number: '',
+    status: 'active',
+  });
+  const [updatingDriver, setUpdatingDriver] = useState(false);
+  const [deletingDriverId, setDeletingDriverId] = useState<string | null>(null);
   
   // Add Bin Form
   const [newBin, setNewBin] = useState({
@@ -345,9 +362,24 @@ export default function AdminDashboard() {
         variant: 'destructive',
       });
     } else {
+      // Send notification to driver
+      try {
+        await supabase.functions.invoke('notify-driver', {
+          body: {
+            driver_id: assignData.driver_id,
+            complaint_id: selectedComplaint.id,
+            complaint_number: selectedComplaint.complaint_number,
+            area: selectedComplaint.area,
+            address: selectedComplaint.address,
+          },
+        });
+      } catch (notifyError) {
+        console.error('Failed to notify driver:', notifyError);
+      }
+      
       toast({
         title: 'Complaint Updated',
-        description: 'Complaint has been assigned successfully.',
+        description: 'Complaint has been assigned and driver notified.',
       });
       setSelectedComplaint(null);
       setAssignData({ driver_id: '', remarks: '', status: 'assigned' });
@@ -355,6 +387,116 @@ export default function AdminDashboard() {
     }
     
     setAssigning(false);
+  };
+
+  const handleEditDriver = (driver: Driver) => {
+    setEditingDriver(driver);
+    setEditDriverData({
+      full_name: driver.full_name,
+      phone: driver.phone,
+      email: driver.email || '',
+      license_number: driver.license_number || '',
+      vehicle_number: driver.vehicle_number || '',
+      status: driver.status || 'active',
+    });
+    setDriverErrors({});
+  };
+
+  const handleUpdateDriver = async () => {
+    if (!editingDriver) return;
+    
+    // Validate fields
+    const errors: Record<string, string> = {};
+    
+    if (!editDriverData.full_name.trim()) errors.full_name = 'Name is required';
+    
+    const phoneError = validatePhone(editDriverData.phone);
+    if (phoneError) errors.phone = phoneError;
+    
+    const vehicleError = validateVehicleNumber(editDriverData.vehicle_number);
+    if (vehicleError) errors.vehicle_number = vehicleError;
+    
+    const licenseError = validateLicenseNumber(editDriverData.license_number);
+    if (licenseError) errors.license_number = licenseError;
+    
+    setDriverErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setUpdatingDriver(true);
+    
+    const { error } = await supabase
+      .from('drivers')
+      .update({
+        full_name: editDriverData.full_name,
+        phone: editDriverData.phone,
+        email: editDriverData.email || null,
+        license_number: editDriverData.license_number || null,
+        vehicle_number: editDriverData.vehicle_number.toUpperCase().replace(/[\s-]/g, '') || null,
+        status: editDriverData.status,
+      })
+      .eq('id', editingDriver.id);
+    
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Driver Updated',
+        description: 'Driver information has been updated.',
+      });
+      setEditingDriver(null);
+      fetchData();
+    }
+    
+    setUpdatingDriver(false);
+  };
+
+  const handleDeleteDriver = async (driverId: string) => {
+    setDeletingDriverId(driverId);
+    
+    // Get driver to find user_id
+    const driver = drivers.find(d => d.id === driverId);
+    
+    // Delete driver record
+    const { error } = await supabase
+      .from('drivers')
+      .delete()
+      .eq('id', driverId);
+    
+    if (error) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      // Also delete user role if exists
+      if (driver?.user_id) {
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', driver.user_id);
+      }
+      
+      toast({
+        title: 'Driver Deleted',
+        description: 'Driver has been removed from the system.',
+      });
+      fetchData();
+    }
+    
+    setDeletingDriverId(null);
   };
 
   const getStats = () => {
@@ -569,18 +711,43 @@ export default function AdminDashboard() {
                           className="flex items-center justify-between border border-border rounded-lg p-4"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-sky-100 text-sky-800 rounded-full flex items-center justify-center">
+                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center">
                               <Truck className="w-5 h-5" />
                             </div>
                             <div>
                               <p className="font-medium">{driver.full_name}</p>
                               {driver.email && <p className="text-sm text-muted-foreground">{driver.email}</p>}
                               <p className="text-sm text-muted-foreground">{driver.phone}</p>
+                              {driver.vehicle_number && (
+                                <p className="text-xs text-muted-foreground">Vehicle: {driver.vehicle_number}</p>
+                              )}
                             </div>
                           </div>
-                          <Badge variant={driver.status === 'active' ? 'default' : 'secondary'}>
-                            {driver.status || 'active'}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={driver.status === 'active' ? 'default' : 'secondary'}>
+                              {driver.status || 'active'}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditDriver(driver)}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteDriver(driver.id)}
+                              disabled={deletingDriverId === driver.id}
+                            >
+                              {deletingDriverId === driver.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -675,6 +842,101 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Edit Driver Dialog */}
+            <Dialog open={!!editingDriver} onOpenChange={(open) => !open && setEditingDriver(null)}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Driver</DialogTitle>
+                  <DialogDescription>
+                    Update driver information
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Full Name *</Label>
+                    <Input
+                      placeholder="Driver name"
+                      value={editDriverData.full_name}
+                      onChange={(e) => setEditDriverData({ ...editDriverData, full_name: e.target.value })}
+                    />
+                    {driverErrors.full_name && (
+                      <p className="text-sm text-destructive">{driverErrors.full_name}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone * (10 digits, starts with 6-9)</Label>
+                    <Input
+                      placeholder="9876543210"
+                      value={editDriverData.phone}
+                      maxLength={10}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        setEditDriverData({ ...editDriverData, phone: value });
+                      }}
+                    />
+                    {driverErrors.phone && (
+                      <p className="text-sm text-destructive">{driverErrors.phone}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="driver@example.com"
+                      value={editDriverData.email}
+                      onChange={(e) => setEditDriverData({ ...editDriverData, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>License Number (15-16 chars)</Label>
+                    <Input
+                      placeholder="KA0120210001234"
+                      value={editDriverData.license_number}
+                      onChange={(e) => setEditDriverData({ ...editDriverData, license_number: e.target.value.toUpperCase() })}
+                    />
+                    {driverErrors.license_number && (
+                      <p className="text-sm text-destructive">{driverErrors.license_number}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vehicle Number (e.g., KA01AB1234)</Label>
+                    <Input
+                      placeholder="KA01AB1234"
+                      value={editDriverData.vehicle_number}
+                      onChange={(e) => setEditDriverData({ ...editDriverData, vehicle_number: e.target.value.toUpperCase() })}
+                    />
+                    {driverErrors.vehicle_number && (
+                      <p className="text-sm text-destructive">{driverErrors.vehicle_number}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={editDriverData.status}
+                      onValueChange={(value) => setEditDriverData({ ...editDriverData, status: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setEditingDriver(null)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUpdateDriver} disabled={updatingDriver}>
+                    {updatingDriver && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Driver
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Bins Tab */}
