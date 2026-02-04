@@ -82,10 +82,12 @@ export default function AdminDashboard() {
     full_name: '',
     phone: '',
     email: '',
+    password: '',
     license_number: '',
     vehicle_number: '',
   });
   const [addingDriver, setAddingDriver] = useState(false);
+  const [driverErrors, setDriverErrors] = useState<Record<string, string>>({});
   
   // Add Bin Form
   const [newBin, setNewBin] = useState({
@@ -146,11 +148,77 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
+  // Validation functions
+  const validatePhone = (phone: string): string | null => {
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phone) return 'Phone number is required';
+    if (!phoneRegex.test(phone)) return 'Must be 10 digits starting with 6, 7, 8, or 9';
+    return null;
+  };
+
+  const validateVehicleNumber = (vehicleNum: string): string | null => {
+    if (!vehicleNum) return null; // Optional field
+    // Format: 2 letters (state) + 2 digits (RTO) + optional letters + 4 digits
+    const vehicleRegex = /^[A-Z]{2}[0-9]{2}[A-Z]{0,3}[0-9]{4}$/i;
+    if (!vehicleRegex.test(vehicleNum.replace(/\s|-/g, ''))) {
+      return 'Invalid format (e.g., KA01AB1234)';
+    }
+    return null;
+  };
+
+  const validateLicenseNumber = (license: string): string | null => {
+    if (!license) return null; // Optional field
+    // 16 characters alphanumeric with possible spaces/hyphens
+    const cleanLicense = license.replace(/[\s-]/g, '');
+    if (cleanLicense.length < 15 || cleanLicense.length > 16) {
+      return 'Must be 15-16 characters';
+    }
+    if (!/^[A-Z0-9]+$/i.test(cleanLicense)) {
+      return 'Only letters and numbers allowed';
+    }
+    return null;
+  };
+
+  const validateEmail = (email: string): string | null => {
+    if (!email) return 'Email is required';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Invalid email format';
+    return null;
+  };
+
+  const validatePassword = (password: string): string | null => {
+    if (!password) return 'Password is required';
+    if (password.length < 6) return 'Password must be at least 6 characters';
+    return null;
+  };
+
   const handleAddDriver = async () => {
-    if (!newDriver.full_name || !newDriver.phone) {
+    // Validate all fields
+    const errors: Record<string, string> = {};
+    
+    if (!newDriver.full_name.trim()) errors.full_name = 'Name is required';
+    
+    const phoneError = validatePhone(newDriver.phone);
+    if (phoneError) errors.phone = phoneError;
+    
+    const emailError = validateEmail(newDriver.email);
+    if (emailError) errors.email = emailError;
+    
+    const passwordError = validatePassword(newDriver.password);
+    if (passwordError) errors.password = passwordError;
+    
+    const vehicleError = validateVehicleNumber(newDriver.vehicle_number);
+    if (vehicleError) errors.vehicle_number = vehicleError;
+    
+    const licenseError = validateLicenseNumber(newDriver.license_number);
+    if (licenseError) errors.license_number = licenseError;
+    
+    setDriverErrors(errors);
+    
+    if (Object.keys(errors).length > 0) {
       toast({
-        title: 'Missing Fields',
-        description: 'Please fill in name and phone number.',
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form.',
         variant: 'destructive',
       });
       return;
@@ -158,7 +226,36 @@ export default function AdminDashboard() {
     
     setAddingDriver(true);
     
-    const { error } = await supabase.from('drivers').insert([newDriver]);
+    // Create auth user for driver
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: newDriver.email,
+      password: newDriver.password,
+      options: {
+        data: {
+          full_name: newDriver.full_name,
+        },
+      },
+    });
+    
+    if (authError) {
+      toast({
+        title: 'Error Creating Account',
+        description: authError.message,
+        variant: 'destructive',
+      });
+      setAddingDriver(false);
+      return;
+    }
+    
+    // Insert driver record
+    const { error } = await supabase.from('drivers').insert([{
+      full_name: newDriver.full_name,
+      phone: newDriver.phone,
+      email: newDriver.email,
+      license_number: newDriver.license_number || null,
+      vehicle_number: newDriver.vehicle_number.toUpperCase().replace(/[\s-]/g, '') || null,
+      user_id: authData.user?.id,
+    }]);
     
     if (error) {
       toast({
@@ -167,11 +264,20 @@ export default function AdminDashboard() {
         variant: 'destructive',
       });
     } else {
+      // Add driver role
+      if (authData.user?.id) {
+        await supabase.from('user_roles').insert([{
+          user_id: authData.user.id,
+          role: 'driver',
+        }]);
+      }
+      
       toast({
         title: 'Driver Added',
-        description: 'New driver has been added successfully.',
+        description: 'New driver has been added successfully. They will receive a confirmation email.',
       });
-      setNewDriver({ full_name: '', phone: '', email: '', license_number: '', vehicle_number: '' });
+      setNewDriver({ full_name: '', phone: '', email: '', password: '', license_number: '', vehicle_number: '' });
+      setDriverErrors({});
       fetchData();
     }
     
@@ -491,45 +597,76 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Full Name</Label>
+                    <Label>Full Name *</Label>
                     <Input
                       placeholder="Driver name"
                       value={newDriver.full_name}
                       onChange={(e) => setNewDriver({ ...newDriver, full_name: e.target.value })}
                     />
+                    {driverErrors.full_name && (
+                      <p className="text-sm text-destructive">{driverErrors.full_name}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Phone</Label>
+                    <Label>Phone * (10 digits, starts with 6-9)</Label>
                     <Input
-                      placeholder="Phone number"
+                      placeholder="9876543210"
                       value={newDriver.phone}
-                      onChange={(e) => setNewDriver({ ...newDriver, phone: e.target.value })}
+                      maxLength={10}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '');
+                        setNewDriver({ ...newDriver, phone: value });
+                      }}
                     />
+                    {driverErrors.phone && (
+                      <p className="text-sm text-destructive">{driverErrors.phone}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Email</Label>
+                    <Label>Email *</Label>
                     <Input
                       type="email"
-                      placeholder="Email address"
+                      placeholder="driver@example.com"
                       value={newDriver.email}
                       onChange={(e) => setNewDriver({ ...newDriver, email: e.target.value })}
                     />
+                    {driverErrors.email && (
+                      <p className="text-sm text-destructive">{driverErrors.email}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>License Number</Label>
+                    <Label>Password * (min 6 characters)</Label>
                     <Input
-                      placeholder="License number"
+                      type="password"
+                      placeholder="••••••••"
+                      value={newDriver.password}
+                      onChange={(e) => setNewDriver({ ...newDriver, password: e.target.value })}
+                    />
+                    {driverErrors.password && (
+                      <p className="text-sm text-destructive">{driverErrors.password}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>License Number (15-16 chars)</Label>
+                    <Input
+                      placeholder="KA0120210001234"
                       value={newDriver.license_number}
-                      onChange={(e) => setNewDriver({ ...newDriver, license_number: e.target.value })}
+                      onChange={(e) => setNewDriver({ ...newDriver, license_number: e.target.value.toUpperCase() })}
                     />
+                    {driverErrors.license_number && (
+                      <p className="text-sm text-destructive">{driverErrors.license_number}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Vehicle Number</Label>
+                    <Label>Vehicle Number (e.g., KA01AB1234)</Label>
                     <Input
-                      placeholder="Vehicle number"
+                      placeholder="KA01AB1234"
                       value={newDriver.vehicle_number}
-                      onChange={(e) => setNewDriver({ ...newDriver, vehicle_number: e.target.value })}
+                      onChange={(e) => setNewDriver({ ...newDriver, vehicle_number: e.target.value.toUpperCase() })}
                     />
+                    {driverErrors.vehicle_number && (
+                      <p className="text-sm text-destructive">{driverErrors.vehicle_number}</p>
+                    )}
                   </div>
                   <Button onClick={handleAddDriver} className="w-full" disabled={addingDriver}>
                     {addingDriver && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Leaf, Mail, Phone, MapPin } from 'lucide-react';
+import { Leaf, Mail, MapPin } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -46,10 +46,6 @@ export function Footer() {
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4" />
                 <span>support@wms.gov</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                <span>1800-WASTE-00</span>
               </li>
               <li className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
