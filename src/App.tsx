@@ -10,6 +10,7 @@ import { ChatBot } from "@/components/chat/ChatBot";
 import Home from "./pages/Home";
 import About from "./pages/About";
 import FAQs from "./pages/FAQs";
+import UserManual from "./pages/UserManual";
 import NotFound from "./pages/NotFound";
 
 // Auth Pages
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/faqs" element={<FAQs />} />
+            <Route path="/user-manual" element={<UserManual />} />
             
             {/* Auth Pages */}
             <Route path="/admin/login" element={<AdminLogin />} />
