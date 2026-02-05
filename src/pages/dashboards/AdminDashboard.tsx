@@ -243,59 +243,55 @@ export default function AdminDashboard() {
     
     setAddingDriver(true);
     
-    // Create auth user for driver
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: newDriver.email,
-      password: newDriver.password,
-      options: {
-        data: {
+    try {
+      // Use edge function to create driver without affecting admin session
+      const { data, error } = await supabase.functions.invoke('create-driver', {
+        body: {
+          email: newDriver.email,
+          password: newDriver.password,
           full_name: newDriver.full_name,
+          phone: newDriver.phone,
+          license_number: newDriver.license_number || null,
+          vehicle_number: newDriver.vehicle_number || null,
         },
-      },
-    });
-    
-    if (authError) {
-      toast({
-        title: 'Error Creating Account',
-        description: authError.message,
-        variant: 'destructive',
       });
-      setAddingDriver(false);
-      return;
-    }
-    
-    // Insert driver record
-    const { error } = await supabase.from('drivers').insert([{
-      full_name: newDriver.full_name,
-      phone: newDriver.phone,
-      email: newDriver.email,
-      license_number: newDriver.license_number || null,
-      vehicle_number: newDriver.vehicle_number.toUpperCase().replace(/[\s-]/g, '') || null,
-      user_id: authData.user?.id,
-    }]);
-    
-    if (error) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      // Add driver role
-      if (authData.user?.id) {
-        await supabase.from('user_roles').insert([{
-          user_id: authData.user.id,
-          role: 'driver',
-        }]);
+      
+      if (error) {
+        console.error('Error creating driver:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to create driver',
+          variant: 'destructive',
+        });
+        setAddingDriver(false);
+        return;
+      }
+      
+      if (data?.error) {
+        console.error('Server error creating driver:', data.error);
+        toast({
+          title: 'Error',
+          description: data.error,
+          variant: 'destructive',
+        });
+        setAddingDriver(false);
+        return;
       }
       
       toast({
         title: 'Driver Added',
-        description: 'New driver has been added successfully. They will receive a confirmation email.',
+        description: 'New driver has been added successfully.',
       });
       setNewDriver({ full_name: '', phone: '', email: '', password: '', license_number: '', vehicle_number: '' });
       setDriverErrors({});
       fetchData();
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      });
     }
     
     setAddingDriver(false);
@@ -432,30 +428,38 @@ export default function AdminDashboard() {
     
     setUpdatingDriver(true);
     
-    const { error } = await supabase
+    const updateData = {
+      full_name: editDriverData.full_name,
+      phone: editDriverData.phone,
+      email: editDriverData.email || null,
+      license_number: editDriverData.license_number || null,
+      vehicle_number: editDriverData.vehicle_number ? editDriverData.vehicle_number.toUpperCase().replace(/[\s-]/g, '') : null,
+      status: editDriverData.status,
+    };
+    
+    console.log('Updating driver:', editingDriver.id, updateData);
+    
+    const { data, error } = await supabase
       .from('drivers')
-      .update({
-        full_name: editDriverData.full_name,
-        phone: editDriverData.phone,
-        email: editDriverData.email || null,
-        license_number: editDriverData.license_number || null,
-        vehicle_number: editDriverData.vehicle_number.toUpperCase().replace(/[\s-]/g, '') || null,
-        status: editDriverData.status,
-      })
-      .eq('id', editingDriver.id);
+      .update(updateData)
+      .eq('id', editingDriver.id)
+      .select();
     
     if (error) {
+      console.error('Error updating driver:', error);
       toast({
         title: 'Error',
         description: error.message,
         variant: 'destructive',
       });
     } else {
+      console.log('Driver updated successfully:', data);
       toast({
         title: 'Driver Updated',
         description: 'Driver information has been updated.',
       });
       setEditingDriver(null);
+      setDriverErrors({});
       fetchData();
     }
     
@@ -463,10 +467,16 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteDriver = async (driverId: string) => {
+    if (!confirm('Are you sure you want to delete this driver?')) {
+      return;
+    }
+    
     setDeletingDriverId(driverId);
     
     // Get driver to find user_id
     const driver = drivers.find(d => d.id === driverId);
+    
+    console.log('Deleting driver:', driverId, driver);
     
     // Delete driver record
     const { error } = await supabase
@@ -475,6 +485,7 @@ export default function AdminDashboard() {
       .eq('id', driverId);
     
     if (error) {
+      console.error('Error deleting driver:', error);
       toast({
         title: 'Error',
         description: error.message,
@@ -489,6 +500,7 @@ export default function AdminDashboard() {
           .eq('user_id', driver.user_id);
       }
       
+      console.log('Driver deleted successfully');
       toast({
         title: 'Driver Deleted',
         description: 'Driver has been removed from the system.',
