@@ -25,12 +25,6 @@ export function Navbar() {
     navigate('/');
   };
 
-  const getDashboardLink = () => {
-    if (userRole === 'admin') return '/admin/dashboard';
-    if (userRole === 'driver') return '/driver/dashboard';
-    return '/user/dashboard';
-  };
-
   return (
     <nav className="bg-card/95 backdrop-blur-md border-b border-border sticky top-0 z-50">
       <div className="container mx-auto px-4">
@@ -58,18 +52,9 @@ export function Navbar() {
                 {link.name}
               </Link>
             ))}
-            
+
             {user && (
-              <>
-                {userRole === 'admin' && (
-                  <Link
-                    to={getDashboardLink()}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                  >
-                    Dashboard
-                  </Link>
-                )}
-                <Button
+              <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
@@ -78,7 +63,6 @@ export function Navbar() {
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
                 </Button>
-              </>
             )}
           </div>
 
@@ -109,19 +93,9 @@ export function Navbar() {
                   {link.name}
                 </Link>
               ))}
-              
+
               {user && (
-                <>
-                  {userRole === 'admin' && (
-                    <Link
-                      to={getDashboardLink()}
-                      onClick={() => setIsOpen(false)}
-                      className="px-4 py-3 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      Dashboard
-                    </Link>
-                  )}
-                  <button
+                <button
                     onClick={() => {
                       handleLogout();
                       setIsOpen(false);
@@ -131,7 +105,6 @@ export function Navbar() {
                     <LogOut className="w-4 h-4 inline mr-2" />
                     Logout
                   </button>
-                </>
               )}
             </div>
           </div>
