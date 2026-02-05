@@ -467,6 +467,21 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteDriver = async (driverId: string) => {
+    // Check if driver has assigned complaints
+    const { data: assignedComplaints } = await supabase
+      .from('complaints')
+      .select('id')
+      .eq('assigned_driver_id', driverId);
+    
+    if (assignedComplaints && assignedComplaints.length > 0) {
+      toast({
+        title: 'Cannot Delete Driver',
+        description: `This driver has ${assignedComplaints.length} complaint(s) assigned. Please reassign or resolve them first.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     if (!confirm('Are you sure you want to delete this driver?')) {
       return;
     }
